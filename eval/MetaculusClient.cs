@@ -44,8 +44,8 @@ public sealed class MetaculusClient : IDisposable
     // Metaculus sits behind Cloudflare, which returns 429 (error 1015) on bursts.
     // A politeness delay between calls plus backoff on 429/5xx keeps a full-
     // tournament scan (hundreds of detail calls) under the limit.
-    private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(600);
-    private const int MaxRetries = 5;
+    private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(1500);
+    private const int MaxRetries = 6;
     private DateTime _lastRequestUtc = DateTime.MinValue;
 
     private async Task<JsonElement> GetJsonAsync(string url)
@@ -69,9 +69,12 @@ public sealed class MetaculusClient : IDisposable
                     $"GET {url} -> {(int)resp.StatusCode}: {Truncate(body, 300)}");
             }
 
-            // Honor Retry-After when present, else exponential backoff: 2,4,8,16s.
-            TimeSpan wait = resp.Headers.RetryAfter?.Delta
-                ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
+            // Exponential floor 3,6,12,24s; take the larger of that and any
+            // (sane) Retry-After the server sends. Cloudflare's Retry-After is
+            // sometimes 0/absent, so it can only extend the wait, never shorten it.
+            TimeSpan floor = TimeSpan.FromSeconds(3 * Math.Pow(2, attempt));
+            TimeSpan hinted = resp.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+            TimeSpan wait = hinted > floor ? hinted : floor;
             Console.WriteLine($"  {(int)resp.StatusCode} on {url} — retry in {wait.TotalSeconds:F0}s (attempt {attempt + 1})");
             await Task.Delay(wait);
         }
