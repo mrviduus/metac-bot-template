@@ -21,6 +21,8 @@ internal static class Program
                 return await Report.RunAsync(tournament);
             case "coverage":
                 return await Coverage.RunAsync(tournament);
+            case "one":
+                return await Probe.InspectOneAsync(tournament);
             default:
                 Console.WriteLine("PredictKit eval harness.");
                 Console.WriteLine("  dotnet run -- selftest              verify scoring math (no network)");

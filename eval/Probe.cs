@@ -49,6 +49,33 @@ internal static class Probe
         return 0;
     }
 
+    /// <summary>Fetch one post by id and report whether content/CP fields are populated.</summary>
+    public static async Task<int> InspectOneAsync(string postIdArg)
+    {
+        using var client = new MetaculusClient();
+        long postId = long.Parse(postIdArg);
+        Console.WriteLine($"== Inspecting post {postId} (detail+with_cp) ==");
+        var detail = await client.GetPostAsync(postId);
+        Console.WriteLine("post title      : " + GetString(detail, "title"));
+        if (!detail.TryGetProperty("question", out var q))
+        {
+            Console.WriteLine("no question (maybe group/multiple). top-level keys:");
+            foreach (var p in detail.EnumerateObject()) Console.WriteLine("  " + p.Name);
+            return 0;
+        }
+        Console.WriteLine("type            : " + GetString(q, "type"));
+        Console.WriteLine("resolution      : " + Raw(q, "resolution"));
+        Console.WriteLine("description!=null: " + (GetString(q, "description") is { Length: > 0 }));
+        Console.WriteLine("res_criteria!=null: " + (GetString(q, "resolution_criteria") is { Length: > 0 }));
+        Console.WriteLine("has community   : " + HasCommunity(q));
+        Console.WriteLine("\naggregations (truncated):");
+        Console.WriteLine(Truncate(Raw(q, "aggregations"), 1200));
+        return 0;
+    }
+
+    private static string Raw(JsonElement obj, string key) =>
+        obj.TryGetProperty(key, out var v) ? v.GetRawText() : "(absent)";
+
     private static bool HasCommunity(JsonElement question)
     {
         if (!question.TryGetProperty("aggregations", out var agg)) return false;
