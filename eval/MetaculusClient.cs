@@ -34,8 +34,12 @@ public sealed class MetaculusClient : IDisposable
     public async Task<JsonElement> ListPostsAsync(
         string tournamentId, string status = "resolved", int limit = 20, int offset = 0)
     {
-        string url = $"{BaseUrl}/posts/?tournaments={tournamentId}" +
-                     $"&statuses={status}&limit={limit}&offset={offset}&with_cp=true";
+        // Empty/"public" tournament omits the filter, querying general questions.
+        string tournamentFilter =
+            string.IsNullOrEmpty(tournamentId) || tournamentId == "public"
+                ? "" : $"tournaments={tournamentId}&";
+        string url = $"{BaseUrl}/posts/?{tournamentFilter}" +
+                     $"statuses={status}&limit={limit}&offset={offset}&with_cp=true";
         return await GetJsonAsync(url);
     }
 
