@@ -2,9 +2,9 @@ namespace PredictKitEval;
 
 internal static class Program
 {
-    // Past AIB seasons carry resolved questions, so a backtest can run today
-    // rather than waiting for summer-2026 questions to resolve.
-    private const string DefaultTournament = "fall-aib-2025";
+    // summer-2026 (id 33022) is where PredictKit has actually forecasted, so it's
+    // the only tournament with scoreable bot data.
+    private const string DefaultTournament = "33022";
 
     private static async Task<int> Main(string[] args)
     {
@@ -17,10 +17,13 @@ internal static class Program
                 return SelfTest.Run();
             case "probe":
                 return await Probe.RunAsync(tournament);
+            case "score":
+                return await Report.RunAsync(tournament);
             default:
                 Console.WriteLine("PredictKit eval harness.");
                 Console.WriteLine("  dotnet run -- selftest              verify scoring math (no network)");
-                Console.WriteLine("  dotnet run -- probe [tournament]   dump Metaculus API shape (needs METACULUS_TOKEN)");
+                Console.WriteLine("  dotnet run -- score [tournament]   score bot vs community (needs METACULUS_TOKEN)");
+                Console.WriteLine("  dotnet run -- probe [tournament]   dump Metaculus API shape");
                 return 0;
         }
     }

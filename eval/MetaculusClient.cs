@@ -26,12 +26,16 @@ public sealed class MetaculusClient : IDisposable
             new AuthenticationHeaderValue("Token", token);
     }
 
-    /// <summary>Fetch one page of posts for a tournament with a given status.</summary>
+    /// <summary>
+    /// Fetch one page of posts for a tournament. with_cp=true is required for the
+    /// response to include community aggregations, resolution, and my_forecasts —
+    /// without it those fields come back null.
+    /// </summary>
     public async Task<JsonElement> ListPostsAsync(
         string tournamentId, string status = "resolved", int limit = 20, int offset = 0)
     {
         string url = $"{BaseUrl}/posts/?tournaments={tournamentId}" +
-                     $"&statuses={status}&limit={limit}&offset={offset}&include_description=true";
+                     $"&statuses={status}&limit={limit}&offset={offset}&with_cp=true";
         return await GetJsonAsync(url);
     }
 
