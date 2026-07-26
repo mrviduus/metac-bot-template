@@ -126,6 +126,10 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# .NET eval harness build output
+eval/bin/
+eval/obj/
+
 # Environments
 .env
 .venv

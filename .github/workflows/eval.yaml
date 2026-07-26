@@ -1,0 +1,37 @@
+name: Eval Harness
+
+# Separate from the forecasting workflows: this never posts forecasts, it only
+# reads the Metaculus API to score the bot. Manual trigger only for now.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Harness command (selftest | probe)"
+        required: true
+        default: "probe"
+        type: string
+      tournament:
+        description: "Tournament id/slug to evaluate"
+        required: false
+        default: "fall-aib-2025"
+        type: string
+
+concurrency:
+  group: eval-harness
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Run harness
+        working-directory: eval
+        run: dotnet run -- ${{ inputs.command }} ${{ inputs.tournament }}
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
