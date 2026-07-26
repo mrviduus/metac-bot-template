@@ -3,56 +3,48 @@ using System.Text.Json;
 namespace PredictKitEval;
 
 /// <summary>
-/// Development helper: finds one resolved binary question in a tournament and
-/// dumps the raw resolution / community-aggregation / my_forecasts fields so the
-/// dataset loader can be wired against the real JSON. Keeps request volume tiny
-/// (one list page + one detail) to stay under Cloudflare's rate limit.
+/// Development helper: dumps the raw resolution / aggregations / my_forecasts of
+/// one resolved binary question straight from the list+with_cp response, so we
+/// can see exactly which fields the API populates. One request.
 /// </summary>
 internal static class Probe
 {
     public static async Task<int> RunAsync(string tournamentId)
     {
         using var client = new MetaculusClient();
-        Console.WriteLine($"== Inspecting resolved binary question in '{tournamentId}' ==");
+        Console.WriteLine($"== Raw fields of a resolved binary in '{tournamentId}' (list+with_cp) ==");
 
         var list = await client.ListPostsAsync(tournamentId, "resolved", limit: 60);
         if (!list.TryGetProperty("results", out var results) ||
-            results.ValueKind != JsonValueKind.Array)
+            results.ValueKind != JsonValueKind.Array || results.GetArrayLength() == 0)
         {
             Console.WriteLine("No results.");
             return 0;
         }
 
-        // Prefer a binary post; fall back to the first resolved post of any type.
-        long? binaryId = null, anyId = null;
         foreach (var post in results.EnumerateArray())
         {
-            long id = post.GetProperty("id").GetInt64();
-            anyId ??= id;
-            string? type = post.TryGetProperty("question", out var q) &&
-                           q.TryGetProperty("type", out var t) ? t.GetString() : null;
-            if (type == "binary") { binaryId = id; break; }
+            if (!post.TryGetProperty("question", out var q)) continue;
+            if (q.TryGetProperty("type", out var t) && t.GetString() == "binary")
+            {
+                long id = post.GetProperty("id").GetInt64();
+                Console.WriteLine($"post {id}: {GetString(post, "title")}\n");
+                Console.WriteLine("resolution         : " + Raw(q, "resolution"));
+                Console.WriteLine("actual_resolve_time: " + Raw(q, "actual_resolve_time"));
+                Console.WriteLine("open_time          : " + Raw(q, "open_time"));
+                Console.WriteLine("\naggregations:");
+                Console.WriteLine(Truncate(Raw(q, "aggregations"), 1800));
+                Console.WriteLine("\nmy_forecasts:");
+                Console.WriteLine(Truncate(Raw(q, "my_forecasts"), 1200));
+                return 0;
+            }
         }
-
-        long target = binaryId ?? anyId ?? throw new InvalidOperationException("no posts");
-        Console.WriteLine($"target post: {target} (binary={(binaryId is not null)})");
-
-        var detail = await client.GetPostAsync(target);
-        if (!detail.TryGetProperty("question", out var question))
-        {
-            Console.WriteLine("detail has no question.");
-            return 0;
-        }
-
-        Console.WriteLine("\ntype        : " + Raw(question, "type"));
-        Console.WriteLine("resolution  : " + Raw(question, "resolution"));
-        Console.WriteLine("actual_resolve_time: " + Raw(question, "actual_resolve_time"));
-        Console.WriteLine("\naggregations (full):");
-        Console.WriteLine(Truncate(Raw(question, "aggregations"), 2500));
-        Console.WriteLine("\nmy_forecasts (full):");
-        Console.WriteLine(Truncate(Raw(question, "my_forecasts"), 2500));
+        Console.WriteLine("No binary question in the first page.");
         return 0;
     }
+
+    private static string? GetString(JsonElement obj, string key) =>
+        obj.TryGetProperty(key, out var v) ? v.ToString() : null;
 
     private static string Raw(JsonElement obj, string key) =>
         obj.TryGetProperty(key, out var v) ? v.GetRawText() : "(absent)";
