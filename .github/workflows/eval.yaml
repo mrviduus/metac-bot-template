@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "Harness command (selftest | probe)"
+        description: "Harness command (score | selftest | probe)"
         required: true
-        default: "probe"
+        default: "score"
         type: string
       tournament:
         description: "Tournament id/slug to evaluate"
         required: false
-        default: "fall-aib-2025"
+        default: "33022"
         type: string
 
 concurrency:
