@@ -41,17 +41,48 @@ public sealed class MetaculusClient : IDisposable
         return await GetJsonAsync($"{BaseUrl}/posts/{postId}/");
     }
 
+    // Metaculus sits behind Cloudflare, which returns 429 (error 1015) on bursts.
+    // A politeness delay between calls plus backoff on 429/5xx keeps a full-
+    // tournament scan (hundreds of detail calls) under the limit.
+    private static readonly TimeSpan MinInterval = TimeSpan.FromMilliseconds(600);
+    private const int MaxRetries = 5;
+    private DateTime _lastRequestUtc = DateTime.MinValue;
+
     private async Task<JsonElement> GetJsonAsync(string url)
     {
-        using var resp = await _http.GetAsync(url);
-        string body = await resp.Content.ReadAsStringAsync();
-        if (!resp.IsSuccessStatusCode)
+        for (int attempt = 0; ; attempt++)
         {
-            throw new HttpRequestException(
-                $"GET {url} -> {(int)resp.StatusCode}: {Truncate(body, 300)}");
+            await ThrottleAsync();
+            using var resp = await _http.GetAsync(url);
+            string body = await resp.Content.ReadAsStringAsync();
+
+            if (resp.IsSuccessStatusCode)
+            {
+                using var doc = JsonDocument.Parse(body);
+                return doc.RootElement.Clone();
+            }
+
+            bool retryable = (int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500;
+            if (!retryable || attempt >= MaxRetries)
+            {
+                throw new HttpRequestException(
+                    $"GET {url} -> {(int)resp.StatusCode}: {Truncate(body, 300)}");
+            }
+
+            // Honor Retry-After when present, else exponential backoff: 2,4,8,16s.
+            TimeSpan wait = resp.Headers.RetryAfter?.Delta
+                ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
+            Console.WriteLine($"  {(int)resp.StatusCode} on {url} — retry in {wait.TotalSeconds:F0}s (attempt {attempt + 1})");
+            await Task.Delay(wait);
         }
-        using var doc = JsonDocument.Parse(body);
-        return doc.RootElement.Clone();
+    }
+
+    private async Task ThrottleAsync()
+    {
+        TimeSpan since = DateTime.UtcNow - _lastRequestUtc;
+        if (since < MinInterval)
+            await Task.Delay(MinInterval - since);
+        _lastRequestUtc = DateTime.UtcNow;
     }
 
     private static string Truncate(string s, int max) =>
