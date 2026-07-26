@@ -42,7 +42,7 @@ public sealed class MetaculusClient : IDisposable
     /// <summary>Fetch full detail for a single post (includes question + forecasts).</summary>
     public async Task<JsonElement> GetPostAsync(long postId)
     {
-        return await GetJsonAsync($"{BaseUrl}/posts/{postId}/");
+        return await GetJsonAsync($"{BaseUrl}/posts/{postId}/?with_cp=true");
     }
 
     // Metaculus sits behind Cloudflare, which returns 429 (error 1015) on bursts.
