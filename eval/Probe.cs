@@ -15,11 +15,8 @@ internal static class Probe
         using var client = new MetaculusClient();
         Console.WriteLine($"== Survey of resolved questions in '{tournamentId}' ==");
 
-        int total = 0, withResolution = 0, withMyForecast = 0, scoreable = 0;
-        var byType = new Dictionary<string, int>();
-        string? binaryExamplePostId = null;
-        JsonElement binaryExample = default;
-
+        // Step 1: collect resolved post ids from the (lightweight) list endpoint.
+        var postIds = new List<long>();
         int offset = 0;
         const int page = 50;
         while (true)
@@ -28,36 +25,45 @@ internal static class Probe
             if (!list.TryGetProperty("results", out var results) ||
                 results.ValueKind != JsonValueKind.Array || results.GetArrayLength() == 0)
                 break;
-
             foreach (var post in results.EnumerateArray())
-            {
-                if (!post.TryGetProperty("question", out var q)) continue;
-                total++;
-
-                string type = Str(q, "type") ?? "?";
-                byType[type] = byType.GetValueOrDefault(type) + 1;
-
-                bool hasResolution = q.TryGetProperty("resolution", out var res) &&
-                                     res.ValueKind == JsonValueKind.String &&
-                                     !string.IsNullOrEmpty(res.GetString());
-                if (hasResolution) withResolution++;
-
-                bool hasMine = q.TryGetProperty("my_forecasts", out var mine) &&
-                               mine.TryGetProperty("latest", out var latest) &&
-                               latest.ValueKind == JsonValueKind.Object;
-                if (hasMine) withMyForecast++;
-
-                if (hasResolution && hasMine) scoreable++;
-
-                if (type == "binary" && binaryExamplePostId is null && hasResolution)
-                {
-                    binaryExamplePostId = Str(post, "id") ?? post.GetProperty("id").GetRawText();
-                    binaryExample = q.Clone();
-                }
-            }
-
+                postIds.Add(post.GetProperty("id").GetInt64());
             offset += page;
             if (results.GetArrayLength() < page) break;
+        }
+        Console.WriteLine($"resolved posts listed: {postIds.Count} (fetching detail for each)");
+
+        // Step 2: resolution + my_forecasts only appear on the detail endpoint.
+        int total = 0, withResolution = 0, withMyForecast = 0, scoreable = 0;
+        var byType = new Dictionary<string, int>();
+        string? binaryExamplePostId = null;
+        JsonElement binaryExample = default;
+
+        foreach (long postId in postIds)
+        {
+            var detail = await client.GetPostAsync(postId);
+            if (!detail.TryGetProperty("question", out var q)) continue;
+            total++;
+
+            string type = Str(q, "type") ?? "?";
+            byType[type] = byType.GetValueOrDefault(type) + 1;
+
+            bool hasResolution = q.TryGetProperty("resolution", out var res) &&
+                                 res.ValueKind == JsonValueKind.String &&
+                                 !string.IsNullOrEmpty(res.GetString());
+            if (hasResolution) withResolution++;
+
+            bool hasMine = q.TryGetProperty("my_forecasts", out var mine) &&
+                           mine.TryGetProperty("latest", out var latest) &&
+                           latest.ValueKind == JsonValueKind.Object;
+            if (hasMine) withMyForecast++;
+
+            if (hasResolution && hasMine) scoreable++;
+
+            if (type == "binary" && binaryExamplePostId is null && hasResolution)
+            {
+                binaryExamplePostId = postId.ToString();
+                binaryExample = q.Clone();
+            }
         }
 
         Console.WriteLine($"total resolved questions : {total}");
