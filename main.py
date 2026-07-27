@@ -685,15 +685,10 @@ if __name__ == "__main__":
                 timeout=40,
                 allowed_tries=2,
             ),
-            # NOTE: this OpenRouter key only allows providers openai/anthropic/
-            # google-ai-studio, so perplexity/sonar is not usable; ":online"
-            # adds OpenRouter's web-search plugin to an allowed provider.
-            "researcher": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini:online",
-                temperature=0.1,
-                timeout=90,
-                allowed_tries=2,
-            ),
+            # AskNews is the tournament-granted news retriever; run_research
+            # routes this string to AskNewsSearcher. Needs ASKNEWS_CLIENT_ID +
+            # ASKNEWS_SECRET in env/secrets. Falls back to no research if unset.
+            "researcher": "asknews/news-summaries",
             "summarizer": "openrouter/openai/gpt-4o-mini",
             "parser": "openrouter/openai/gpt-4o-mini",
         },
