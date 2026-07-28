@@ -679,8 +679,12 @@ if __name__ == "__main__":
         skip_previously_forecasted_questions=True,
         extra_metadata_in_explanation=True,
         llms={
+            # Model choice is the biggest score lever: Metaculus' own
+            # single-model benchmark bots (same AskNews research, differing only
+            # by LLM) rank gemini-3.5-flash top (+722) while gpt-4o sits near the
+            # bottom (-521). google-ai-studio is an allowed provider for this key.
             "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o",
+                model="openrouter/google/gemini-3.5-flash",
                 temperature=0.3,
                 timeout=40,
                 allowed_tries=2,
