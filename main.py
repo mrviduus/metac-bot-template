@@ -681,13 +681,16 @@ if __name__ == "__main__":
         llms={
             # Model choice is the biggest score lever: Metaculus' own
             # single-model benchmark bots (same AskNews research, differing only
-            # by LLM) rank gemini-3.5-flash top (+722) while gpt-4o sits near the
-            # bottom (-521). google-ai-studio is an allowed provider for this key.
+            # by LLM) put gpt-4o near the bottom (-521) and claude-opus-4.7 well
+            # positive (+475). gemini-3.5-flash scored highest (+722) but on this
+            # key routes via a throttled Google-AI-Studio BYOK (503s), so it's
+            # unreliable for the 20-min cron; anthropic is stable and accepts
+            # temperature (openai gpt-5 reasoning models reject non-default temp).
             "default": GeneralLlm(
-                model="openrouter/google/gemini-3.5-flash",
+                model="openrouter/anthropic/claude-opus-4.7",
                 temperature=0.3,
-                timeout=40,
-                allowed_tries=2,
+                timeout=60,
+                allowed_tries=3,
             ),
             # AskNews is the tournament-granted news retriever; run_research
             # routes this string to AskNewsSearcher. Needs ASKNEWS_CLIENT_ID +
