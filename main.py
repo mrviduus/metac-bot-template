@@ -407,6 +407,7 @@ class SummerTemplateBot2026(ForecastBot):
             additional_instructions=parsing_instructions,
             num_validation_samples=self._structure_output_validation_samples,
         )
+        percentile_list = self._clip_percentiles_to_bounds(percentile_list, question)
         prediction = NumericDistribution.from_question(percentile_list, question)
         logger.info(
             f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}."
@@ -510,6 +511,34 @@ class SummerTemplateBot2026(ForecastBot):
             f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}."
         )
         return ReasonedPrediction(prediction_value=prediction, reasoning=reasoning)
+
+    def _clip_percentiles_to_bounds(
+        self, percentiles: list[Percentile], question: NumericQuestion
+    ) -> list[Percentile]:
+        # NumericDistribution.from_question hard-rejects any percentile beyond
+        # 2x the question range past a bound (whole run fails). Confident models
+        # (e.g. opus) sometimes put tail mass far above a tightly-bounded
+        # question. Clamp into a safe window so from_question standardizes
+        # instead of raising: closed bound -> clamp to the bound; open bound ->
+        # allow 1.5x range of overflow (under the 2x reject threshold).
+        span = question.upper_bound - question.lower_bound
+        upper_cap = (
+            question.upper_bound + 1.5 * span
+            if question.open_upper_bound
+            else question.upper_bound
+        )
+        lower_cap = (
+            question.lower_bound - 1.5 * span
+            if question.open_lower_bound
+            else question.lower_bound
+        )
+        return [
+            Percentile(
+                percentile=p.percentile,
+                value=min(max(p.value, lower_cap), upper_cap),
+            )
+            for p in percentiles
+        ]
 
     def _create_upper_and_lower_bound_messages(
         self, question: NumericQuestion | DateQuestion
